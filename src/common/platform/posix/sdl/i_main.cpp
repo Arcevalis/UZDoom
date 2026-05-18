@@ -173,6 +173,11 @@ void I_StartupJoysticks();
 
 int main (int argc, char **argv)
 {
+	// Make stdout line-buffered when piped (e.g. to DoomRunner's output window).
+	// Without this, the C library makes stdout fully buffered (~4KB) when not
+	// connected to a terminal, causing large delays or lost output.
+	setvbuf(stdout, NULL, _IOLBF, 0);
+
 #if !defined (__APPLE__)
 	{
 		int s[4] = { SIGSEGV, SIGILL, SIGFPE, SIGBUS };

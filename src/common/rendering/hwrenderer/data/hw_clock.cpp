@@ -29,6 +29,7 @@
 #include "i_time.h"
 #include "i_interface.h"
 #include "printf.h"
+#include "common/mcp/MCPSnapshot.h"
 
 glcycle_t RenderWall,SetupWall,ClipWall;
 glcycle_t RenderFlat,SetupFlat;
@@ -195,5 +196,5 @@ bool glcycle_t::active = false;
 void  checkBenchActive()
 {
 	FStat *stat = FStat::FindStat("rendertimes");
-	glcycle_t::active = ((stat != NULL && stat->isActive()) || printstats);
+	glcycle_t::active = ((stat != NULL && stat->isActive()) || printstats || MCP::MCPSnapshot::RenderTimersRequested());
 }

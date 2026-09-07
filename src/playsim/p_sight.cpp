@@ -54,6 +54,15 @@ static int sightcounts[6];
 static cycle_t SightCycles;
 static cycle_t MaxSightCycles;
 
+// Read-only accessors for the MCP snapshot (never mutate state).
+#include "common/mcp/MCPSnapshot.h"
+namespace MCPStats
+{
+double SightMs() { return SightCycles.TimeMS(); }
+double SightMaxMs() { return MaxSightCycles.TimeMS(); }
+int SightTests() { return sightcounts[3]; }
+}
+
 enum
 {
 	SO_TOPFRONT = 1,

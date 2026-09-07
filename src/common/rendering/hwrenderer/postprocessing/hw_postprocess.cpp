@@ -38,6 +38,9 @@ TArray<PostProcessShader> PostProcessShaders;
 bool gpuStatActive = false;
 bool keepGpuStatActive = false;
 FString gpuStatOutput;
+// Last non-empty sample, latched for out-of-band consumers (MCP server
+// parses at ~10Hz and cannot catch the per-frame transient reliably).
+FString gpuStatLatched;
 
 ADD_STAT(gpu)
 {

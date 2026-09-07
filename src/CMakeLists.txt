@@ -361,6 +361,14 @@ else()
 	message( SEND_ERROR "Could not find cppdap" )
 endif()
 
+# nlohmann/json headers for the local MCP server (common/mcp/MCPServer.cpp).
+# The cppdap target keeps its json include dirs private, so expose them here:
+# prefer the cppdap-bundled headers, otherwise fall back to the compiler's
+# default include path (e.g. system nlohmann_json package).
+if( EXISTS "${CMAKE_SOURCE_DIR}/libraries/cppdap/third_party/json/include/nlohmann/json.hpp" )
+	include_directories( SYSTEM "${CMAKE_SOURCE_DIR}/libraries/cppdap/third_party/json/include" )
+endif()
+
 # Start defining source files for ZDoom
 set( PLAT_WIN32_SOURCES
 	win32/i_steam.cpp
@@ -1178,6 +1186,8 @@ set (PCH_SOURCES
 	common/scripting/dap/BreakpointManager.cpp
 	common/scripting/dap/DebugExecutionManager.cpp
 	common/scripting/dap/DebugServer.cpp
+	common/mcp/MCPServer.cpp
+	common/mcp/MCPSnapshot.cpp
 	common/scripting/dap/IdHandleBase.cpp
 	common/scripting/dap/IdMap.cpp
 	common/scripting/dap/IdProvider.cpp

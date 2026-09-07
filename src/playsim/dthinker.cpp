@@ -39,11 +39,21 @@
 
 #include "p_visualthinker.h"
 
+#include "common/mcp/MCPSnapshot.h"
+
 static int ThinkCount, ClientSideThinkCount;
 static cycle_t ThinkCycles, ClientSideThinkCycles;
 extern cycle_t BotSupportCycles;
 extern cycle_t ActionCycles;
 extern int BotWTG;
+
+// Read-only accessors for the MCP snapshot (never mutate state).
+namespace MCPStats
+{
+double ThinkMs() { return ThinkCycles.TimeMS(); }
+int ThinkCount() { return ::ThinkCount; }
+double ActionMs() { return ActionCycles.TimeMS(); }
+}
 
 IMPLEMENT_CLASS(DThinker, false, false)
 
@@ -102,7 +112,8 @@ void FThinkerCollection::RunThinkers(FLevelLocals *Level)
 
 	ThinkCycles.Clock();
 
-	if (!profilethinkers)
+	bool mcpProfile = MCP::MCPSnapshot::ConsumeProfileRequest();
+	if (!profilethinkers && !mcpProfile)
 	{
 		// Tick every thinker left from last time
 		for (i = STAT_FIRST_THINKING; i <= MAX_STATNUM; ++i)
@@ -139,6 +150,32 @@ void FThinkerCollection::RunThinkers(FLevelLocals *Level)
 			}
 		} while (count != 0);
 
+		if (mcpProfile)
+		{
+			// Read-only publish for the local MCP server: copy the per-class
+			// timings into plain data (sorted by total time, descending).
+			std::vector<MCP::MCPProfileEntry> entries;
+			entries.reserve(Profiles.CountUsed());
+			auto it = TMap<FName, ProfileInfo>::Iterator(Profiles);
+			TMap<FName, ProfileInfo>::Pair *pair;
+			while (it.NextPair(pair))
+			{
+				MCP::MCPProfileEntry e;
+				e.name = pair->Key.GetChars();
+				e.calls = pair->Value.numcalls;
+				e.total_ms = pair->Value.timer.TimeMS();
+				e.avg_ms = e.calls != 0 ? e.total_ms / e.calls : 0.0;
+				entries.push_back(e);
+			}
+			std::sort(entries.begin(), entries.end(), [](const MCP::MCPProfileEntry &left, const MCP::MCPProfileEntry &right)
+			{
+				return left.total_ms > right.total_ms;
+			});
+			MCP::MCPSnapshot::PublishProfile(std::move(entries), ThinkCount, 0);
+		}
+
+		if (profilethinkers)
+		{
 		struct SortedProfileInfo
 		{
 			const char* className;
@@ -195,6 +232,7 @@ void FThinkerCollection::RunThinkers(FLevelLocals *Level)
 		}
 
 		profilethinkers = 0;
+		}
 	}
 
 	ThinkCycles.Unclock();

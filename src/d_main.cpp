@@ -48,6 +48,8 @@
 #include "c_dispatch.h"
 #include "cmdlib.h"
 #include "common/scripting/dap/DebugServer.h"
+#include "common/mcp/MCPServer.h"
+#include "common/mcp/MCPSnapshot.h"
 #include "widgets/errorwindow.h"
 #include "d_buttons.h"
 #include "d_dehacked.h"
@@ -322,6 +324,8 @@ FARG(bots, "", "", "",
 	"");
 FARG(debug, "", "", "",
 	"");
+FARG(mcp, "", "", "",
+	"");
 
 EXTERN_FARG(join);
 EXTERN_FARG(host);
@@ -536,6 +540,7 @@ volatile sig_atomic_t gameloop_abort = false;
 
 FStartScreen* StartScreen;
 std::unique_ptr<DebugServer::DebugServer> debugServer;
+std::unique_ptr<MCP::MCPServer> mcpServer;
 
 cycle_t FrameCycles;
 
@@ -1461,6 +1466,7 @@ void D_DoomLoop ()
 			I_SetFrameTime();
 
 			TryRunTics (); // will run at least one tic
+		if (mcpServer && mcpServer->IsRunning()) MCP::MCPSnapshot::CaptureIfDue();
 			// Update display, next frame, with current state.
 			I_StartTic ();
 			D_ProcessEvents();
@@ -2964,6 +2970,37 @@ CUSTOM_CVAR(Bool, vm_debug, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
 CVAR(Int, vm_debug_port, 19021, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
+CUSTOM_CVAR(Bool, mcp_enabled, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
+{
+	if (mcp_enabled == false){
+		if (mcpServer){
+			mcpServer->Stop();
+			mcpServer = nullptr;
+		}
+	} else {
+		Printf("You must restart " GAMENAME " for this change to take effect.\n");
+	}
+}
+
+CVAR(Int, mcp_port, 30001, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
+
+// Live off-switch for GPU timer-query sampling (mcp/tools get_render_stats).
+// Takes effect immediately, no restart needed.
+CVAR(Bool, mcp_gpu_stats, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
+
+CUSTOM_CVAR(Int, mcp_profile_interval_ms, 1000, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
+{
+	if (self < 500)
+	{
+		self = 500;
+	}
+	else if (self > 60000)
+	{
+		self = 60000;
+	}
+	MCP::MCPSnapshot::SetProfileIntervalMs(self);
+}
+
 void Mlook_ReleaseHandler()
 {
 	if (lookspring)
@@ -4084,6 +4121,12 @@ static int D_DoomMain_Internal (void)
 		should_debug = true;
 	}
 
+	bool should_mcp = mcp_enabled;
+	const char * mcp_port_arg = Args->CheckValue(FArg_mcp);
+	if (mcp_port_arg) {
+		should_mcp = true;
+	}
+
 	// reinit from here
 
 	do
@@ -4193,6 +4236,25 @@ static int D_DoomMain_Internal (void)
 			debugServer->Listen(debug_port);
 		}
 
+		// Launch MCP server if enabled (opt-in, localhost only, read-only)
+		if (should_mcp) {
+			mcpServer = std::make_unique<MCP::MCPServer>();
+			int mcp_port_num = mcp_port.get()->ToInt();
+			if (mcp_port_arg) {
+				mcp_port_num = atoi(mcp_port_arg);
+			}
+			if (mcp_port_num > 65535 || mcp_port_num < 0) {
+				I_FatalError("Invalid MCP port %d (must be between 0 and 65535)", mcp_port_num);
+			}
+			MCP::MCPSnapshot::SetProfileIntervalMs(mcp_profile_interval_ms.get()->ToInt());
+			if (mcpServer->Listen(mcp_port_num)) {
+				Printf("MCP server listening on http://127.0.0.1:%d/mcp\n", mcp_port_num);
+			} else {
+				Printf(TEXTCOLOR_RED "MCP server failed to bind port %d\n", mcp_port_num);
+				mcpServer = nullptr;
+			}
+		}
+
 		D_DoomLoop ();		// this only returns if a 'restart' CCMD is given.
 		//
 		// Clean up after a restart
@@ -4297,6 +4359,11 @@ void D_Cleanup()
 	{
 		debugServer->Stop();
 		debugServer = nullptr;
+	}
+	if (mcpServer)
+	{
+		mcpServer->Stop();
+		mcpServer = nullptr;
 	}
 	if (demorecording)
 	{

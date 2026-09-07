@@ -856,3 +856,10 @@ CCMD(gc)
 		}
 	}
 }
+
+// Read-only accessor for the MCP snapshot (never mutates state).
+#include "common/mcp/MCPSnapshot.h"
+namespace MCPStats
+{
+double GCMs() { return GC::State != GC::GCS_Pause ? GC::GCTime.TimeMS() : 0; }
+}

@@ -36,6 +36,7 @@ int current_rendered_commandbuffers;
 extern bool gpuStatActive;
 extern bool keepGpuStatActive;
 extern FString gpuStatOutput;
+extern FString gpuStatLatched;
 
 VkCommandBufferManager::VkCommandBufferManager(VulkanRenderDevice* fb) : fb(fb)
 {
@@ -258,6 +259,8 @@ void VkCommandBufferManager::UpdateGpuStats()
 		out.Format("%s=%04.2f ms\n", q.name.GetChars(), timeNS / 1000000.0f);
 		gpuStatOutput += out;
 	}
+	if (!gpuStatOutput.IsEmpty())
+		gpuStatLatched = gpuStatOutput;
 	timeElapsedQueries.clear();
 	mGroupStack.clear();
 

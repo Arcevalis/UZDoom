@@ -41,6 +41,7 @@ CVAR(Bool, gl_debug_breakpoint, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
 extern bool gpuStatActive;
 extern bool keepGpuStatActive;
 extern FString gpuStatOutput;
+extern FString gpuStatLatched;
 
 namespace OpenGLRenderer
 {
@@ -69,6 +70,8 @@ void FGLDebug::Update()
 		out.Format("%s=%04.2f ms\n", query.first.GetChars(), timeElapsed / 1000000.0f);
 		gpuStatOutput += out;
 	}
+	if (!gpuStatOutput.IsEmpty())
+		gpuStatLatched = gpuStatOutput;
 	timeElapsedQueries.clear();
 
 	gpuStatActive = keepGpuStatActive;
